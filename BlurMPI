@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,8 +30,10 @@ int main (int argc, char * argv[]) {
 // Initialize MPI and Data Distribution
 
 MPI_Comm new_comm;
+
 MPI_Comm_size (MPI_COMM_WORLD, &nprocs);
 MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
 dims[0] = dims[1] = 0;
 MPI_Dims_create (nprocs, 2, dims);
 // How many processes there are in each direction
@@ -89,36 +92,36 @@ int **mask;
         recvbuf = (int *)malloc(sizeof(int)*(bufsize));
 
 /* Read input on process 0 and distribute to processes */
-	if (rank==0){
-                localrow = 1;
-                lastcolsize = colsize - pcolsize*(npcols-1);
-        	Rrow = (int *)malloc(sizeof(int)*(colsize));
-        	Grow = (int *)malloc(sizeof(int)*(colsize));
-        	Brow = (int *)malloc(sizeof(int)*(colsize));
+if (rank==0){
+	localrow = 1;
+	lastcolsize = colsize - pcolsize*(npcols-1);
+	Rrow = (int *)malloc(sizeof(int)*(colsize));
+	Grow = (int *)malloc(sizeof(int)*(colsize));
+	Brow = (int *)malloc(sizeof(int)*(colsize));
 
-        	fp = fopen("David.ps", "r");
-		while(! feof(fp))
-		{
-			icheck = fscanf(fp, "\n%[^\n]", str);
-			if (nlines < 5) {strcpy((char *)lines[nlines++],(char *)str);}
-			else if(icheck>0){
-				for (sptr=&str[0];*sptr != '\0';sptr+=6){
-					sscanf(sptr,"%2x",&h1);
-					sscanf(sptr+2,"%2x",&h2);
-					sscanf(sptr+4,"%2x",&h3);
-					if (row < rowsize) {
-						Rrow[col] = h1;
-						Grow[col] = h2;
-						Brow[col] = h3;
-						col++;
-					}
-					if (col==colsize){
-						coords[0] = row/prowsize;
-						for(k=0;k<npcols;k++){
-							nsend = (k<npcols-1 ? pcolsize : lastcolsize);
-							coffset = k*pcolsize;
-							coords[1] = k;
-							MPI_Cart_rank(new_comm, coords, &dest);
+	fp = fopen("David.ps", "r");
+	while(! feof(fp))
+	{
+		icheck = fscanf(fp, "\n%[^\n]", str);
+		if (nlines < 5) {strcpy((char *)lines[nlines++],(char *)str);}
+		else if(icheck>0){
+			for (sptr=&str[0];*sptr != '\0';sptr+=6){
+				sscanf(sptr,"%2x",&h1);
+				sscanf(sptr+2,"%2x",&h2);
+				sscanf(sptr+4,"%2x",&h3);
+				if (row < rowsize) {
+					Rrow[col] = h1;
+					Grow[col] = h2;
+					Brow[col] = h3;
+					col++;
+				}
+				if (col==colsize){
+					coords[0] = row/prowsize;
+					for(k=0;k<npcols;k++){
+						nsend = (k<npcols-1 ? pcolsize : lastcolsize);
+						coffset = k*pcolsize;
+						coords[1] = k;
+						MPI_Cart_rank(new_comm, coords, &dest);
 							if(dest!=0){
 								MPI_Send(Rrow+coffset,nsend,MPI_INT,dest,tag,new_comm);
 								MPI_Send(Grow+coffset,nsend,MPI_INT,dest,tag,new_comm);
@@ -157,9 +160,7 @@ int **mask;
 		t1=tim.tv_sec+(tim.tv_usec/1000000.0);
 	}
 
-	int nsteps = 500;
-
-	for(k=0;k<nblurs;k++){
+	for(k=1;k<nblurs;k++){
 		for(j=1;j<=nlocaly;j++)
 			for(i=1;i<=nlocalx;i++)
 				RGB[j][i] = newRGB[j][i];
@@ -191,7 +192,7 @@ int **mask;
 
 		for(j=1;j<=nlocaly;j++)
 			for(i=1;i<=nlocalx;i++)
-				if(mask[j][i]) newRGB[j][i] = 0.25*(RGB[j][i] +
+				if(mask[j][i]) newRGB[j][i] = 0.25*(RGB[j][i-1] +
 					RGB[j][i+1] + RGB[j-1][i] + RGB[j+1][i]);
 
  // Shift Communication Operations
@@ -313,6 +314,6 @@ int **mask;
 		}
 	}
 /* Finalize and exit */
-        MPI_Finalize();
-    	return 0;
+      MPI_Finalize();
+			return 0;
 }
